@@ -1,15 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.IO;
 using System.Drawing;
-using System.Drawing.Design;
-using System.Drawing.Drawing2D;
-using System.Drawing.Imaging;
-using System.Drawing.Printing;
-using System.Drawing.Text;
 
 
 namespace INPTPZ1
@@ -20,245 +11,180 @@ namespace INPTPZ1
     /// </summary>
     class Program
     {
-        static void Main(string[] args)
-        {
-            // TODO: add parameters from args?
-            Bitmap bmp = new Bitmap(300, 300);
-            double xmin = -1.5;
-            double xmax = 1.5;
-            double ymin = -1.5;
-            double ymax = 1.5;
+        private static Bitmap bitmap;
 
-            double xstep = (xmax - xmin) / 300;
-            double ystep = (ymax - ymin) / 300;
+        private const int DEFAULT_BITMAP_SIZE = 300;
+        private const int NUMBER_OF_ITERATIONS = 30;
+        private const double TOLERANCE_LEVEL = 0.5;
+        private const double ROOT_TOLERANCE_LEVEL = 0.01;
 
-            List<Cplx> koreny = new List<Cplx>();
-            // TODO: poly should be parameterised?
-            Poly p = new Poly();
-            p.Coe.Add(new Cplx() { Re = 1 });
-            p.Coe.Add(Cplx.Zero);
-            p.Coe.Add(Cplx.Zero);
-            //p.Coe.Add(Cplx.Zero);
-            p.Coe.Add(new Cplx() { Re = 1 });
-            Poly pd = p.Derive();
+        private static double xmin, xmax, ymin, ymax, xstep, ystep;
 
-            Console.WriteLine(p);
-            Console.WriteLine(pd);
+        private static List<ComplexNumber> roots;
 
-            var clrs = new Color[]
+        private static readonly Color[] colors = new Color[]
             {
                 Color.Red, Color.Blue, Color.Green, Color.Yellow, Color.Orange, Color.Fuchsia, Color.Gold, Color.Cyan, Color.Magenta
             };
 
-            var maxid = 0;
+        private static Polynome polynome, polynomeDerived;
+        
 
-            // TODO: cleanup!!!
-            // for every pixel in image...
-            for (int i = 0; i < 300; i++)
-            {
-                for (int j = 0; j < 300; j++)
+        static void Main(string[] args)
+        {            
+            InitializeValues(args);
+            
+            InitializePolynome();
+
+            ProcessImage();
+
+            SaveImage();
+
+        }
+
+        private static void InitializeValues(string[] args)
+        {
+            if (args.Length == 5)
+            {       
+                if (Int32.TryParse(args[0],out int bitmapSize) &&                    
+                    Double.TryParse(args[2], out xmax) &&
+                    Double.TryParse(args[3], out xmin) &&
+                    Double.TryParse(args[4], out ymax) &&
+                    Double.TryParse(args[5], out ymin))
                 {
-                    // find "world" coordinates of pixel
-                    double x = xmin + j * xstep;
-                    double y = ymin + i * ystep;
-
-                    Cplx ox = new Cplx()
-                    {
-                        Re = x,
-                        Im = (float)(y)
-                    };
-
-                    if (ox.Re == 0)
-                        ox.Re = 0.0001;
-                    if (ox.Im == 0)
-                        ox.Im = 0.0001f;
-
-                    //Console.WriteLine(ox);
-
-                    // find solution of equation using newton's iteration
-                    float it = 0;
-                    for (int q = 0; q< 30; q++)
-                    {
-                        var diff = p.Eval(ox).Divide(pd.Eval(ox));
-                        ox = ox.Subtract(diff);
-
-                        //Console.WriteLine($"{q} {ox} -({diff})");
-                        if (Math.Pow(diff.Re, 2) + Math.Pow(diff.Im, 2) >= 0.5)
-                        {
-                            q--;
-                        }
-                        it++;
-                    }
-
-                    //Console.ReadKey();
-
-                    // find solution root number
-                    var known = false;
-                    var id = 0;
-                    for (int w = 0; w <koreny.Count;w++)
-                    {
-                        if (Math.Pow(ox.Re- koreny[w].Re, 2) + Math.Pow(ox.Im - koreny[w].Im, 2) <= 0.01)
-                        {
-                            known = true;
-                            id = w;
-                        }
-                    }
-                    if (!known)
-                    {
-                        koreny.Add(ox);
-                        id = koreny.Count;
-                        maxid = id + 1; 
-                    }
-
-                    // colorize pixel according to root number
-                    //int vv = id;
-                    //int vv = id * 50 + (int)it*5;
-                    var vv = clrs[id % clrs.Length];
-                    vv = Color.FromArgb(vv.R, vv.G, vv.B);
-                    vv = Color.FromArgb(Math.Min(Math.Max(0, vv.R-(int)it*2), 255), Math.Min(Math.Max(0, vv.G - (int)it*2), 255), Math.Min(Math.Max(0, vv.B - (int)it*2), 255));
-                    //vv = Math.Min(Math.Max(0, vv), 255);
-                    bmp.SetPixel(j, i, vv);
-                    //bmp.SetPixel(j, i, Color.FromArgb(vv, vv, vv));
+                    bitmap = new Bitmap(bitmapSize, bitmapSize);
+                }
+                else
+                {
+                    throw new FormatException("Arguments are not correct.");
                 }
             }
-
-            // TODO: delete I suppose...
-            //for (int i = 0; i < 300; i++)
-            //{
-            //    for (int j = 0; j < 300; j++)
-            //    {
-            //        Color c = bmp.GetPixel(j, i);
-            //        int nv = (int)Math.Floor(c.R * (255.0 / maxid));
-            //        bmp.SetPixel(j, i, Color.FromArgb(nv, nv, nv));
-            //    }
-            //}
-
-                    bmp.Save("../../../out.png");
-            //Console.ReadKey();
-        }
-    }
-
-    class Poly
-    {
-        public List<Cplx> Coe { get; set; }
-
-        public Poly()
-        {
-            Coe = new List<Cplx>();
-        }
-
-        public Poly Derive()
-        {
-            Poly p = new Poly();
-            for (int i = 1; i < Coe.Count; i++)
+            else
             {
-                p.Coe.Add(Coe[i].Multiply(new Cplx() { Re = i }));
-            }
+                bitmap = new Bitmap(DEFAULT_BITMAP_SIZE, DEFAULT_BITMAP_SIZE);
+                xmin = -1.5;
+                xmax = 1.5;
+                ymin = -1.5;
+                ymax = 1.5;
+            }            
 
-            return p;
+            xstep = (xmax - xmin) / bitmap.Width;
+            ystep = (ymax - ymin) / bitmap.Height;
+
+            roots = new List<ComplexNumber>();
         }
 
-        public Cplx Eval(Cplx x)
+        private static void InitializePolynome()
         {
-            Cplx s = Cplx.Zero;
-            for (int i = 0; i < Coe.Count; i++)
+            polynome = new Polynome()
             {
-                Cplx coef = Coe[i];
-                Cplx bx = x;
-                int power = i;
-
-                if (i > 0)
+                Coefficients =
                 {
-                    for (int j = 0; j < power - 1; j++)
-                        bx = bx.Multiply(x);
-
-                    coef = coef.Multiply(bx);
+                    new ComplexNumber() { Real = 1 },
+                    ComplexNumber.Zero,
+                    ComplexNumber.Zero,
+                    new ComplexNumber() { Real = 1 }
                 }
+            };
+            
+            polynomeDerived = polynome.Derive();
 
-                s = s.Add(coef);
-            }
-
-            return s;
+            Console.WriteLine(polynome);
+            Console.WriteLine(polynomeDerived);
         }
 
-        public override string ToString()
-        {
-            string s = "";
-            for (int i = 0; i < Coe.Count; i++)
+        private static void ProcessImage()
+        {               
+            for (int i = 0; i < bitmap.Height; i++)
             {
-                s += Coe[i];
-                if (i > 0)
+                for (int j = 0; j < bitmap.Width; j++)
                 {
-                    for (int j = 0; j < i; j++)
-                    {
-                        s += "x";
-                    }
+                    ComplexNumber coordinates = CalculatePixelCoordinates(i, j);
+
+                    int iterations = CalculateNewtonIteration(ref coordinates);
+
+                    int rootNumber = CalculateRootNumber(coordinates);
+                    
+                    Color pixelColor = CalculateColor(iterations, rootNumber);
+
+                    bitmap.SetPixel(j, i, pixelColor);
                 }
-                s += " + ";
             }
-            return s;
-        }
-    }
+        }        
 
-    class Cplx
-    {
-        public double Re { get; set; }
-        public float Im { get; set; }
+        private static ComplexNumber CalculatePixelCoordinates(int bitmapY, int bitmapX)
+        {           
+            double x = xmin + bitmapX * xstep;
+            double y = ymin + bitmapY * ystep;
 
-        public readonly static Cplx Zero = new Cplx()
-        {
-            Re = 0,
-            Im = 0
-        };
-
-        public Cplx Multiply(Cplx b)
-        {
-            Cplx a = this;
-            // aRe*bRe + aRe*bIm*i + aIm*bRe*i + aIm*bIm*i*i
-            return new Cplx()
+            ComplexNumber resultCoordinates = new ComplexNumber()
             {
-                Re = a.Re * b.Re - a.Im * b.Im,
-                Im = (float)(a.Re * b.Im + a.Im * b.Re)
+                Real = x,
+                Imaginary = y
             };
+
+            if (resultCoordinates.Real == 0)
+                resultCoordinates.Real = 0.0001;
+
+            if (resultCoordinates.Imaginary == 0)
+                resultCoordinates.Imaginary = 0.0001;
+
+            return resultCoordinates;
         }
 
-        public Cplx Add(Cplx b)
-        {
-            Cplx a = this;
-            return new Cplx()
+        private static int CalculateNewtonIteration(ref ComplexNumber coordinates)
+        {           
+            int iterations = 0;
+            for (int i = 0; i < NUMBER_OF_ITERATIONS; i++)
             {
-                Re = a.Re + b.Re,
-                Im = a.Im + b.Im
-            };
+                ComplexNumber difference = polynome.Eval(coordinates).Divide(polynomeDerived.Eval(coordinates));
+                coordinates = coordinates.Subtract(difference);
+
+                if (Math.Pow(difference.Real, 2) + Math.Pow(difference.Imaginary, 2) >= TOLERANCE_LEVEL)
+                {
+                    i--;
+                }
+                iterations++;
+            }
+            return iterations;
         }
-        public Cplx Subtract(Cplx b)
+
+        private static int CalculateRootNumber(ComplexNumber coordinates)
         {
-            Cplx a = this;
-            return new Cplx()
+            bool rootIsKnown = false;
+            int rootNumber = 0;
+            for (int i = 0; i < roots.Count; i++)
             {
-                Re = a.Re - b.Re,
-                Im = a.Im - b.Im
-            };
-        }
-
-        public override string ToString()
-        {
-            return $"({Re} + {Im}i)";
-        }
-
-        internal Cplx Divide(Cplx b)
-        {
-            // (aRe + aIm*i) / (bRe + bIm*i)
-            // ((aRe + aIm*i) * (bRe - bIm*i)) / ((bRe + bIm*i) * (bRe - bIm*i))
-            //  bRe*bRe - bIm*bIm*i*i
-            var tmp = this.Multiply(new Cplx() { Re = b.Re, Im = -b.Im });
-            var tmp2 = b.Re * b.Re + b.Im * b.Im;
-
-            return new Cplx()
+                if (Math.Pow(coordinates.Real - roots[i].Real, 2) + Math.Pow(coordinates.Imaginary - roots[i].Imaginary, 2) <= ROOT_TOLERANCE_LEVEL)
+                {
+                    rootIsKnown = true;
+                    rootNumber = i;
+                }
+            }
+            if (!rootIsKnown)
             {
-                Re = tmp.Re / tmp2,
-                Im = (float)(tmp.Im / tmp2)
-            };
+                roots.Add(coordinates);
+                rootNumber = roots.Count;
+            }
+
+            return rootNumber;
+        }
+
+        private static Color CalculateColor(int iterations, int rootNumber)
+        {
+            Color pixelColor = colors[rootNumber % colors.Length];
+
+            pixelColor = Color.FromArgb(
+                Math.Min(Math.Max(0, pixelColor.R - iterations * 2), 255), 
+                Math.Min(Math.Max(0, pixelColor.G - iterations * 2), 255), 
+                Math.Min(Math.Max(0, pixelColor.B - iterations * 2), 255));
+
+            return pixelColor;
+        }
+
+        private static void SaveImage()
+        {
+            bitmap.Save("../../../out.png");
         }
     }
 }
